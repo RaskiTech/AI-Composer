@@ -9,5 +9,3 @@ All the needed files are under the "Program" forder, so you can download just th
 To download the program just click the "Code" button at the top right corner. From the dropdown you can select "Download ZIP". After it has downloaded, extract all by right-clicking on the zip. The program will be under the Program folder.
 
 Made using [Eagle Engine](https://github.com/RaskiTech/Eagle)
-
-![Eagle](EagleLogo.png|width=50px)
