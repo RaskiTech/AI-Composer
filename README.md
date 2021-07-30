@@ -1,7 +1,7 @@
 # AI Composer [![License](https://img.shields.io/github/license/RaskiTech/AI-Composer.svg)](https://github.com/RaskiTech/AI-Composer/blob/master/LICENSE)
 Artificial intelligence that generates music.
 
-![App](/App.png?raw=true "App")
+![App](/App.PNG?raw=true "App")
 
 AI Composer is a program that generates music for you. It has sliders that determine what the song will look like. These sliders can be used to slightly modify the song. You can also use others sliders that modify the song as a whole: You can make the notes longer, create more notes or change the instrument etc.
 
