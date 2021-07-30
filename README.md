@@ -6,4 +6,4 @@ AI Composer is a program that generates music for you. It has sliders that deter
 All the needed files are under the "Program" forder. The Program allows you to modify that directory, as long as you keep the Assets folder in the same directory as the executable.
 
 Made using [Eagle-Engine](https://github.com/RaskiTech/Eagle)
-![Eagle](Eagle/Assets/EagleLogo.png?raw=true "Eagle")
+![Eagle](EagleLogo.png?raw=true "Eagle logo")
