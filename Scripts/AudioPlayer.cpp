@@ -27,24 +27,74 @@ struct SimpleInstrument {
 	double(*MakeSoundWave)(double, double);
 };
 
-double MakeSineWave(double hz, double deltaTime) { return glm::sin(hz * tau * deltaTime); }
-double MakeSquareWave(double hz, double deltaTime) { return glm::sin(hz * tau * deltaTime) > 0.0 ? 0.7 : -0.7;; }
-double MakeTriangleWave(double hz, double deltaTime) { return glm::asin(glm::sin(hz * tau * deltaTime)) * twoOverPI; }
-double MakeSawWave(double hz, double deltaTime) 
-		{ return twoOverPI * (hz * glm::pi<double>() * glm::fmod(deltaTime, 1.0 / hz) - halfPI);}
+// Here are defined all the sounds. These are functions that make the sounds, and below these functions are used.
+// Output a double between [-1, 1]
+
+double MakeSineWave(double hz, double deltaTime) { 
+	return glm::sin(hz * tau * deltaTime); 
+}
+double MakeSquareWave(double hz, double deltaTime) { 
+	return glm::sin(hz * tau * deltaTime) > 0.0 ? 0.7 : -0.7;
+}
+double MakeTriangleWave(double hz, double deltaTime) {
+	return glm::asin(glm::sin(hz * tau * deltaTime)) * twoOverPI;
+}
+double MakeSawWave(double hz, double deltaTime) { 
+	return twoOverPI * (hz * glm::pi<double>() * glm::fmod(deltaTime, 1.0 / hz) - halfPI);
+}
 double MakeCustomWave(double hz, double deltaTime) {
 	return 0.5 * MakeSquareWave(hz, deltaTime) + 0.5 * MakeSquareWave(hz * 2, deltaTime);
 }
+double MakeCustom1Instrument(double hz, double deltaTime) {
+	double output = 0;
 
-SimpleInstrument SineInstrument    (0.05f, 0.05f, MakeSineWave);
-SimpleInstrument SquareInstrument  (0.05f, 0.05f, MakeSquareWave);
+	output += 1.0 * MakeSineWave(hz, deltaTime);
+	output += 0.5 * MakeSineWave(2.0 * hz, deltaTime);
+	output += 0.25 * MakeSquareWave(3.0 * hz, deltaTime);
+
+	return output;
+}
+double MakeCustom2Instrument(double hz, double deltaTime) {
+	// Some modulation
+	//const double modulationHZ = 2.0; // 0 >=
+	//const double modulationAmplitude = 0.3; // [0, 1]
+	//hz += modulationAmplitude * (glm::sin(modulationHZ * tau * deltaTime) / 2 + 1.0);
+
+	double output = 0;
+	output += 1.0 * MakeSineWave(1.0 * hz, deltaTime);
+	output += 0.5 * MakeTriangleWave(1.0 * hz, deltaTime);
+	output += 0.25 * MakeSineWave(2.0 * hz, deltaTime);
+
+	return output;
+}
+
+// Not all of these are used, check below in GetInstrument(uint8_t index) which ones are used.
+SimpleInstrument sineInstrument    (0.05f, 0.05f, MakeSineWave);
+SimpleInstrument squareInstrument  (0.05f, 0.05f, MakeSquareWave);
 SimpleInstrument triangleInstrument(0.05f, 0.05f, MakeTriangleWave);
 SimpleInstrument sawInstrument     (0.05f, 0.05f, MakeSawWave);
-SimpleInstrument customInstrument  (0.1f, 0.5f, MakeCustomWave);
+SimpleInstrument custom1Instrument (0.01f, 0.05f, MakeCustom1Instrument);
+SimpleInstrument custom2Instrument (0.05f, 0.15f, MakeCustom2Instrument);
 
 std::vector<Note> playingNotes;
 mutex mutexNotes;
 atomic<double> masterVolume = 1.0;
+
+// These are the instrument indices
+SimpleInstrument& GetInstrument(uint8_t index) {
+	switch (index) {
+	case 0:
+		return sineInstrument;
+	case 1:
+		return triangleInstrument;
+	case 2:
+		return custom1Instrument;
+	case 3:
+		return custom2Instrument;
+	default:
+		return sineInstrument;
+	}
+}
 
 typedef bool(*lambda)(Note const& item);
 template<class T>
@@ -56,21 +106,6 @@ void safe_remove(T& v, lambda f)
 			n = v.erase(n);
 		else
 			++n;
-}
-
-SimpleInstrument& GetInstrument(uint8_t index) {
-	switch (index) {
-	case 0:
-		return SineInstrument;
-	case 1:
-		return SquareInstrument;
-	case 2:
-		return triangleInstrument;
-	case 3:
-		return sawInstrument;
-	case 4:
-		return customInstrument;
-	}
 }
 
 double CalculateNoiseSample(double deltaTime) {
@@ -108,13 +143,13 @@ double CalculateNoiseSample(double deltaTime) {
 
 	safe_remove<std::vector<Note>>(playingNotes, [](Note const& item) { return !item.finishedPlaying; });
 
-	double returnVal = output * masterVolume * 0.2;
+	double returnVal = output * masterVolume;
 	//LOG("{0} {1}", returnVal, masterVolume);
 	//if (returnVal > 1)
 	//	LOG("Y. Keys: {0}", playingNotes.size());
 	//else
 	//	LOG("N");
-	return returnVal; // Constant so the output isn't over 1 when pressing multiple keys
+	return returnVal * 0.15; // Constant so the output isn't over 1 when pressing multiple keys
 }
 
 void NotePlayer::Init() {

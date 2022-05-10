@@ -33,18 +33,20 @@ struct AI {
 static AI* model = nullptr;
 
 
-static atomic<float> sensitivity = 0.18f;
-static float volume = 0.8f;
+static atomic<float> sensitivity = 0.2f;
+static float volume = 0.5f;
 
 static atomic<bool> thread2Working = false;
 
 static atomic<bool> needToPredict = true;
 static atomic<bool> predictionDone = false;
 static atomic<bool> useData1 = false;
-static atomic<uint8_t> minDur = 2;
+static atomic<uint8_t> minDur = 4;
 
 
 void AppManager::QueuePredictThread() { needToPredict = true; }
+
+#pragma region SaveToFile
 
 void writeFile(std::ofstream& stream, int value, int size) { stream.write(reinterpret_cast<const char*>(&value), size); }
 double clip(double dSample, double dMax) {
@@ -169,9 +171,9 @@ void AppManager::SaveAsMidi(std::function<void()> doneCallback) {
 	writeFile(file, SwapBytes32(6), 4);
 	writeFile(file, SwapBytes16(0), 2); // Format
 	writeFile(file, SwapBytes16(1), 2); // Num of tracks
-	//writeFile(file, SwapBytes16(1), 2); // Default unit of delta-time
-	writeFile(file, 1, 1); // Default unit of delta-time
-	writeFile(file, 128, 1); // Default unit of delta-time
+	writeFile(file, SwapBytes16(24), 2); // Default unit of delta-time
+	//writeFile(file, 1, 1); // Default unit of delta-time
+	//writeFile(file, 128, 1); // Default unit of delta-time
 
 	// Track chunk
 	file << "MTrk";
@@ -203,7 +205,7 @@ void AppManager::SaveAsMidi(std::function<void()> doneCallback) {
 
 	writeFile(file, 0,   1); // Timing byte comes before status, but the status is running. Add this here and then don't later
 	writeFile(file, 144, 1); // "Note on" status byte on channel 0
-	/*
+	//*
 	for (int step = 0; step < 16 * 96; step++) {
 		// Check each note
 		for (int i = 0; i < 96; i++) {
@@ -211,11 +213,17 @@ void AppManager::SaveAsMidi(std::function<void()> doneCallback) {
 			if (val > 0.9f) {
 				if (!noteArr[i]) {
 					noteArr[i] = true;
-					if (time > 127) LOG("Time out of range, implement MSbit check");
+
+					// MSB check
+					if (time > 127) {
+						writeFile(file, time / 128 + 128/*8th bit*/, 1);
+						time = time % 128;
+					}
+
 					if (!writingFirstData) writeFile(file, time, 1);
-					else writingFirstData = true;
+					else writingFirstData = false;
 					writeFile(file, i+addToIToGetNote, 1); // Key
-					writeFile(file, 0x40, 1); // Vel
+					writeFile(file, 64, 1); // Vel
 					time = 0;
 				}
 			}
@@ -224,15 +232,15 @@ void AppManager::SaveAsMidi(std::function<void()> doneCallback) {
 					noteArr[i] = false;
 					if (time > 127) LOG("Time out of range, implement MSbit check");
 					if (!writingFirstData) writeFile(file, time, 1);
-					else writingFirstData = true;
+					else writingFirstData = false;
 					writeFile(file, i+addToIToGetNote, 1); // Key
-					writeFile(file, 0x00, 1); // Vel
+					writeFile(file, 0, 1); // Vel
 					time = 0;
 				}
 			}
 		}
 
-		time++;
+		time += 1;
 	}
 	// Add all that remained on
 	for (int i = 0; i < 96; i++)
@@ -240,24 +248,9 @@ void AppManager::SaveAsMidi(std::function<void()> doneCallback) {
 			if (time > 127) LOG("Time out of range, implement MSbit check");
 			writeFile(file, time, 1);
 			writeFile(file, i + addToIToGetNote, 1); // Key
-			writeFile(file, 0x00, 1); // Vel
+			writeFile(file, 0, 1); // Vel
 			time = 0;
 		}
-	*/
-	writeFile(file, 68, 1); // Note
-	writeFile(file, 64, 1); // Vel
-						    
-	writeFile(file, 96, 1); // Timing
-	writeFile(file, 64, 1); // Note
-	writeFile(file, 64, 1); // Vel
-						    
-	writeFile(file, 96, 1); // Timing
-	writeFile(file, 68, 1); // Note
-	writeFile(file, 0,  1); // Vel
-						    
-	writeFile(file, 96, 1); // Timing
-	writeFile(file, 64, 1); // Note
-	writeFile(file, 0,  1); // Vel
 
 	// End of track
 	writeFile(file, 0, 1);   // 00
@@ -269,10 +262,12 @@ void AppManager::SaveAsMidi(std::function<void()> doneCallback) {
 	int postPos = file.tellp();
 	file.seekp(prePos - 4);
 	uint32_t diff = postPos - prePos;
-	writeFile(file, SwapBytes32(diff), 4); // For some reason the length is 6 too short
+	writeFile(file, SwapBytes32(diff), 4);
 
 	file.close();
 }
+
+#pragma endregion
 
 AppManager::AppManager(Entity songStepLine) : songStepLine(songStepLine) {
 	std::fstream in("Assets/vals.binary", std::ios::in | std::ios::binary);
@@ -521,7 +516,7 @@ Ref<Texture> MusicScene::CreateTexture(Entity& parent, UIEntityParams params, fl
 }
 
 void MusicScene::NoteSensitivityChanged(float val) {
-	sensitivity = val / 4 + 0.1f; // Scale between 0.1 and 0.35
+	sensitivity = (1.0f - val) / 2 + 0.1f; // Scale between 0.1 and 0.6
 	GetAppManager()->QueuePredictThread();
 }
 void MusicScene::PlaySpeedChanged(float val) {
@@ -596,7 +591,7 @@ Entity MusicScene::CreateToggleGroup(Entity& parent, const glm::vec2& pos,
 	const std::string& texturePath, const std::array<glm::vec4, 4>& colors, void(MusicScene::* callback)(int)) 
 {
 	constexpr size_t optionSize = 4;
-	const size_t selected = 2;
+	const size_t selected = 3;
 	SetInstrument(selected);
 	Entity group = AddUIEntity("Toggle group", parent);
 	UIAlignComponent& comp = group.GetComponent<UIAlignComponent>();
@@ -615,8 +610,10 @@ Entity MusicScene::CreateToggleGroup(Entity& parent, const glm::vec2& pos,
 		0, 0, 0.3f, 0.7f, false, false);
 	Ref<Texture> instrumentsTex = Texture::Create(texturePath);
 	const glm::vec2 subTextures[optionSize] = {
-		{ 0, 0 }, { 1, 0 },
-		{ 0, 1 }, { 1, 1 }
+		{ 0, 0 }, 
+		{ 0, 1 },
+		{ 1, 0 }, 
+		{ 1, 1 }
 	};
 
 	for (int i = 0; i < optionSize; i++) {
@@ -709,9 +706,9 @@ void MusicScene::CreateInterface() {
 	appManagerEntity.AddComponent<NativeScriptComponent>().Bind<AppManager>(line);
 
 	//// Option Sliders ////
-	Entity sensitivitySlider = CreateFillBar(canvas, { -0.325f,-0.35f }, LIGHT_RED, (sensitivity-0.1f)*4, &MusicScene::NoteSensitivityChanged);
-	Entity minDurSlider = CreateFillBar(canvas, { -0.325f,-0.225f }, GRAY_LIGHT, 0.3f, &MusicScene::MinDurChanged);
-	Entity speedSlider = CreateFillBar(canvas, { 0,-0.35f }, LIGHT_GREEN, 0.6f, &MusicScene::PlaySpeedChanged);
+	Entity sensitivitySlider = CreateFillBar(canvas, { -0.325f,-0.35f }, LIGHT_RED, 1.0f-((sensitivity)-0.1f)*2, &MusicScene::NoteSensitivityChanged);
+	Entity minDurSlider = CreateFillBar(canvas, { -0.325f,-0.225f }, GRAY_LIGHT, 0.6f, &MusicScene::MinDurChanged);
+	Entity speedSlider = CreateFillBar(canvas, { 0,-0.35f }, LIGHT_GREEN, playSpeedAtProgramStart, &MusicScene::PlaySpeedChanged);
 	Entity volumeSlider = CreateFillBar(canvas, { 0.325f, -0.35f }, LIGHT_YELLOW, volume, &MusicScene::VolumeChanged);
 
 	Entity instrumentToggle = CreateToggleGroup(canvas, { 0.325f, -0.225f }, "Assets/Instruments.png", 
@@ -751,11 +748,11 @@ Ref<Scene> Egl::ApplicationStartup() {
 	return CreateRef<MusicScene>();
 }
 void Egl::EngineInit() {
-	std::string path = "../Sandbox/src/fdeep/"; // "Assets/"
+	std::string path = "Assets/";//"../Sandbox/src/fdeep/"; // 
 
 	std::string shouldBePath = path + "decoder.json";
 	if (!std::filesystem::exists(shouldBePath)) {
-		std::cout << "Starting for the first time..." << std::endl;
+		std::cout << "Starting for the first time. Please don't close this window..." << std::endl;
 		std::fstream part1, part2;
 		rename((path + "decoder_part_1.json").c_str(), shouldBePath.c_str());
 		part2.open(path + "decoder_part_2.json");

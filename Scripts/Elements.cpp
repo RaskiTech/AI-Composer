@@ -4,7 +4,7 @@ using namespace Egl;
 #define SMALLER_DISTANCE(posA, posB, distanceX, distanceY) glm::abs(posA.x - posB.x) < distanceX && glm::abs(posA.y - posB.y) < distanceY
 #define EAGLE_BIND_EVENT_FUNC(x) std::bind(&Slider::x, this, std::placeholders::_1)
 
-// Value between 0 and 1
+const float sliderRange = 7;
 void Slider::SetValue(float val, UIAlignComponent& handleTrans) {
 	value = val;
 	auto sliderUI = GetComponent<UIAlignComponent>();
@@ -12,7 +12,7 @@ void Slider::SetValue(float val, UIAlignComponent& handleTrans) {
 	float posY = sliderUI.GetWorldPosition().y;
 	float upper = posY + scaleY / 2;
 	float under = posY - scaleY / 2;
-	float worldYPos = under + (upper - under) * val;
+	float worldYPos = under + (upper - under) * (val / sliderRange + 0.5f);
 	handleTrans.SetYPosValue(handleTrans.GetPrimaryYFromWorldPos(worldYPos));
 
 	callback(val, index);
@@ -59,7 +59,7 @@ void Slider::MoveToCursor(const glm::vec2& mousePos, UIAlignComponent& handleTra
 	float upper = posY + scaleY / 2;
 	float under = posY - scaleY / 2;
 	float val = (ScreenToWorldPos(mousePos).y - under) / (upper - under);
-	SetValue(glm::clamp<float>(val, 0, 1), handleTrans);
+	SetValue((glm::clamp<float>(val, 0, 1) - 0.5f) * sliderRange, handleTrans);
 }
 
 bool FillBar::OnEvent(Event& e) {

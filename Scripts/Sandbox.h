@@ -5,6 +5,8 @@
 #include <Eagle.h>
 using namespace Egl;
 
+const float playSpeedAtProgramStart = 0.5f;
+
 constexpr size_t valuesBufferSize = 120 * 120 + 2 * 120;
 constexpr size_t sliderAmount = 19;
 
@@ -40,7 +42,7 @@ private:
 	// Song members
 
 	bool songPlaying = false;
-	float timeBetweenSteps = 1 / (0.6f * 30) * 0.5f;
+	float timeBetweenSteps = 1 / (playSpeedAtProgramStart * 30) * 0.5f;
 	uint32_t songStep = 0;
 	std::array<bool, 96> activeNotesThisStep;
 	NotePlayer notePlayer;
